@@ -25,6 +25,8 @@ struct Config {
     keymap: toml::value::Table,
 }
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 macro_rules! default_conf {
     () => {
         "device = \"\"\n[keymap]\n"
@@ -50,17 +52,21 @@ fn main() {
             
             conf_contents = String::from_str(default_conf!()).unwrap();
         }
+        2 => {
+            if &args[1] == "-v" { version(); }
+            else { help(); }
+        }
         // Flag and argument passed
         3 => {
-            if &args[1] != "-c" {
-                help();
-            }
-            else {
-                conf_contents = fs::read_to_string(&args[2])
-                    .expect("Something went wrong reading the file");
+            match args[1].as_str() {
+                "-c" => {
+                    conf_contents = fs::read_to_string(&args[2])
+                        .expect("Something went wrong reading the file");
+                }
+                _ => { help(); }
             }
         }
-        _ => {help();}
+        _ => { help(); }
     }
     
     let config: Config = toml::from_str(conf_contents.as_str())
@@ -84,6 +90,11 @@ fn main() {
     }
     
     println!("\nListening for events on device {}", config.device);
+}
+
+fn version() {
+    println!("Version: {}", VERSION);
+    exit(0);
 }
 
 fn help() {
