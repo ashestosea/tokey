@@ -10,9 +10,14 @@ use serde_derive::Deserialize;
 use std::format;
 use std::env;
 use std::fs;
+use std::fs::File;
 use std::collections::HashMap;
+use std::io::Write;
+use std::process::exit;
 use std::str::FromStr;
 use toml;
+
+extern crate xdg;
 
 #[derive(Deserialize)]
 struct Config {
@@ -20,20 +25,50 @@ struct Config {
     keymap: toml::value::Table,
 }
 
+macro_rules! default_conf {
+    () => {
+        "device = \"\"\n[keymap]\n"
+    };
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let config_filename = &args[1];
+    let mut conf_contents = String::new();
     
-    let config_file_contents = fs::read_to_string(config_filename)
-    .expect("Something went wrong reading the file");
+    match &args.len() {
+        // No Arguments passed
+        1 => {
+            let xdg_dirs = xdg::BaseDirectories::with_prefix("spacefn-rs").unwrap();
+            let conf_filename_opt = xdg_dirs.find_config_file("conf.toml");
+            if conf_filename_opt.is_none() {
+                let conf_path = xdg_dirs.place_config_file("conf.toml")
+                    .expect("Can't create config directory");
+                let mut conf_file = File::create(conf_path).unwrap();
+                write!(&mut conf_file, default_conf!())
+                    .expect("Can't write config file");
+            }
+            
+            conf_contents = String::from_str(default_conf!()).unwrap();
+        }
+        // Flag and argument passed
+        3 => {
+            if &args[1] != "-c" {
+                help();
+            }
+            else {
+                conf_contents = fs::read_to_string(&args[2])
+                    .expect("Something went wrong reading the file");
+            }
+        }
+        _ => {help();}
+    }
     
-    let config: Config = toml::from_str(config_file_contents.as_str())
-    .expect("Error parsing config file");
+    let config: Config = toml::from_str(conf_contents.as_str())
+        .expect("Error parsing config file");
     
     let mut keymap: HashMap<Key, Key> = HashMap::new();
     let kvp_index: u16 = 0;
     for kvp in config.keymap.iter() {
-        // println!("key = {} :: val = {}", kvp.0, kvp.1.to_string());
         let k = Key::from_str(kvp.0)
             .expect(format!("Invalid keymap key (keymap index {})", kvp_index).as_str());
         let v_str = kvp.1.as_str()
@@ -49,4 +84,17 @@ fn main() {
     }
     
     println!("\nListening for events on device {}", config.device);
+}
+
+fn help() {
+    println!(r#"Usage: spacefn-rs [OPTION]... [FILE]...
+Add Description of spacefn
+
+  -c,            specify a custom configuration file
+  -v, --help     display this help and exit
+      --version  output version information and exit
+
+Full documentation <https://www.github.com/chronotab/spacefn-rs>
+    "#);
+    exit(1);
 }
