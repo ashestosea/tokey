@@ -1,0 +1,12 @@
+device = "/dev/input/by-id/usb-Keychron_Keychron_C1-event-kbd"
+
+[keymap]
+KEY_J = "KEY_LEFT"
+KEY_K = "KEY_DOWN"
+KEY_L = "KEY_UP"
+KEY_SEMICOLON = "KEY_RIGHT"
+KEY_M = "KEY_HOME"
+KEY_COMMA = "KEY_PAGEDOWN"
+KEY_DOT = "KEY_PAGEUP"
+KEY_SLASH = "KEY_END"
+KEY_B = "KEY_SPACE"
