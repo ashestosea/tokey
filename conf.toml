@@ -1,12 +1,19 @@
-device = "/dev/input/by-id/usb-Keychron_Keychron_C1-event-kbd"
+# If device_name starts with /dev/input/ it's treated as a path
+# Else we grab the highest numbered device with a name that contains device_name
+device_name = "Keychron C1"
+# device_name = "/dev/input/event2"
+
+toggle_state_key = "KEY_RIGHTMETA"
 
 [keymap]
 KEY_J = "KEY_LEFT"
+KEY_L = "KEY_RIGHT"
+KEY_I = "KEY_UP"
 KEY_K = "KEY_DOWN"
-KEY_L = "KEY_UP"
-KEY_SEMICOLON = "KEY_RIGHT"
-KEY_M = "KEY_HOME"
-KEY_COMMA = "KEY_PAGEDOWN"
-KEY_DOT = "KEY_PAGEUP"
-KEY_SLASH = "KEY_END"
-KEY_B = "KEY_SPACE"
+KEY_H = "KEY_PAGEDOWN"
+KEY_Y = "KEY_PAGEUP"
+KEY_U = "KEY_HOME"
+KEY_O = "KEY_END"
+KEY_P = "KEY_BACKSPACE"
+KEY_M = "KEY_DELETE"
+KEY_SEMICOLON = "KEY_SPACE"
