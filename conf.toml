@@ -1,9 +1,13 @@
 # If device_name starts with /dev/input/ it's treated as a path
 # Else we grab the highest numbered device with a name that contains device_name
-device_name = "Keychron C1"
-# device_name = "/dev/input/event2"
+# device_name = "Keychron C1"
+device_name = "/dev/input/event2"
 
-toggle_state_key = "KEY_RIGHTMETA"
+# in ms
+mode_switch_timeout = 200
+
+fn_key = "KEY_SPACE"
+pause_key = "KEY_RIGHTMETA"
 
 [keymap]
 KEY_J = "KEY_LEFT"
