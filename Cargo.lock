@@ -50,6 +50,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dbus-crossroads"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5d83c4b78f7c7d0dec4859d286665a06858a607ba406c91a36316ff36918141"
+dependencies = [
+ "dbus",
+]
+
+[[package]]
 name = "dirs"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -215,6 +224,7 @@ name = "spacefn-rs"
 version = "0.1.0"
 dependencies = [
  "dbus",
+ "dbus-crossroads",
  "epoll",
  "evdev",
  "nix",
