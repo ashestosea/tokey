@@ -288,13 +288,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         State::DECIDE => {
                             let current_time = Instant::now();
                             if current_time.duration_since(start_time) >= timeout {
-                                // Send all buffered key events as down
+                                // Send all buffered key events as down then up
                                 for i in &event_buffer {
-                                    let e = InputEvent::new(
+                                    let ev_down = InputEvent::new(
                                         key_event,
                                         *i,
                                         KeyState::DOWN as i32);
-                                    virt_dev.emit(&[e]).unwrap();
+                                    let ev_up = InputEvent::new(
+                                        key_event,
+                                        *i,
+                                        KeyState::UP as i32);
+                                    virt_dev.emit(&[ev_down]).unwrap();
+                                    virt_dev.emit(&[ev_up]).unwrap();
                                 }
                                 event_buffer.clear();
                                 state = State::SHIFT;
