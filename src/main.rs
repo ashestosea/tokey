@@ -14,6 +14,7 @@ use dbus_crossroads::{Crossroads, IfaceBuilder};
 use evdev::InputEvent;
 use evdev::InputEventKind;
 use evdev::Key;
+use evdev::uinput::VirtualDevice;
 use nix::{
     fcntl::{FcntlArg, OFlag},
     sys::epoll,
@@ -226,6 +227,27 @@ fn register_dbus_iface() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn send_key_down(virt_dev: &mut VirtualDevice, code: u16) {
+    send_key(virt_dev, code, KeyState::DOWN);
+}
+
+fn send_key_up(virt_dev: &mut VirtualDevice, code: u16) {
+    send_key(virt_dev, code, KeyState::UP);
+}
+
+fn send_key(virt_dev: &mut VirtualDevice, code: u16, value: KeyState) {
+    let event = InputEvent::new(
+        evdev::EventType::KEY,
+        code,
+        value as i32);
+    virt_dev.emit(&[event]).unwrap();
+}
+
+fn send_key_i32(virt_dev: &mut VirtualDevice, code: u16, value: i32) {
+    let event = InputEvent::new(evdev::EventType::KEY, code, value);
+    virt_dev.emit(&[event]).unwrap();
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup
     let config = get_config();
@@ -283,23 +305,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 state = State::DECIDE;
                                 break;
                             }
-                            virt_dev.emit(&[ev]).unwrap();
+                            
+                            send_key_i32(&mut virt_dev, ev.code(), ev.value());
                         }
                         State::DECIDE => {
                             let current_time = Instant::now();
                             if current_time.duration_since(start_time) >= timeout {
                                 // Send all buffered key events as down then up
                                 for i in &event_buffer {
-                                    let ev_down = InputEvent::new(
-                                        key_event,
-                                        *i,
-                                        KeyState::DOWN as i32);
-                                    let ev_up = InputEvent::new(
-                                        key_event,
-                                        *i,
-                                        KeyState::UP as i32);
-                                    virt_dev.emit(&[ev_down]).unwrap();
-                                    virt_dev.emit(&[ev_up]).unwrap();
+                                    send_key_down(&mut virt_dev, *i);
+                                    send_key_up(&mut virt_dev, *i);
                                 }
                                 event_buffer.clear();
                                 state = State::SHIFT;
@@ -311,27 +326,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 } else if ev.value() == KeyState::UP as i32 {
                                     let mut code = ev.code();
                                     if ev.kind() == InputEventKind::Key(fn_key) {
-                                        let fn_down = InputEvent::new(
-                                            key_event,
-                                            code,
-                                            KeyState::DOWN as i32,
-                                        );
-                                        let fn_up = InputEvent::new(
-                                            key_event,
-                                            code,
-                                            KeyState::UP as i32,
-                                        );
-
-                                        virt_dev.emit(&[fn_down]).unwrap();
-                                        virt_dev.emit(&[fn_up]).unwrap();
+                                        send_key_down(&mut virt_dev, code);
+                                        send_key_up(&mut virt_dev, code);
                                         // Send all buffered key events as down
                                         for i in &event_buffer {
-                                            let e = InputEvent::new(
-                                                key_event,
-                                                *i,
-                                                KeyState::DOWN as i32,
-                                            );
-                                            virt_dev.emit(&[e]).unwrap();
+                                            send_key_down(&mut virt_dev, *i);
                                         }
                                         event_buffer.clear();
                                         state = State::IDLE;
@@ -343,24 +342,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             code = keymap[&code];
                                         }
                                         
-                                        let ev_down = InputEvent::new(
-                                            key_event,
-                                            code,
-                                            KeyState::DOWN as i32,
-                                        );
-                                        let ev_up = InputEvent::new(
-                                            key_event,
-                                            code,
-                                            KeyState::UP as i32,
-                                        );
-
-                                        virt_dev.emit(&[ev_down]).unwrap();
-                                        virt_dev.emit(&[ev_up]).unwrap();
+                                        send_key_down(&mut virt_dev, code);
+                                        send_key_up(&mut virt_dev, code);
                                         state = State::SHIFT;
                                         break;
                                     } else {
                                         // key was pressed before fn_key
-                                        virt_dev.emit(&[ev]).unwrap();
+                                        send_key_i32(&mut virt_dev, ev.code(), ev.value());
                                     }
                                 }
                             }
@@ -370,12 +358,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 if ev.value() == KeyState::UP as i32 {
                                     // Send all buffered key events as up
                                     for i in &event_buffer {
-                                            let e = InputEvent::new(
-                                                key_event,
-                                                *i,
-                                                KeyState::UP as i32,
-                                            );
-                                            virt_dev.emit(&[e]).unwrap();
+                                        send_key_up(&mut virt_dev, *i);
                                     }
                                     event_buffer.clear();
                                     state = State::IDLE;
@@ -383,26 +366,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
 
                             if keymap.contains_key(&ev.code()) {
-                                let mapped_ev =
-                                    InputEvent::new(
-                                        key_event,
-                                        keymap[&ev.code()],
-                                        ev.value());
-
+                                let mapped_code = keymap[&ev.code()];
+                                
                                 match ev.value().into() {
                                     KeyState::UP => {
                                         // remove ev from buffer
-                                        event_buffer.retain(|c| c != &mapped_ev.code());
+                                        event_buffer.retain(|c| c != &mapped_code);
                                     }
                                     KeyState::DOWN => {
-                                        event_buffer.push(mapped_ev.code());
+                                        event_buffer.push(mapped_code);
                                     }
                                     _ => {}
                                 }
 
-                                virt_dev.emit(&[mapped_ev]).unwrap();
+                                send_key_i32(&mut virt_dev, mapped_code, ev.value());
                             } else {
-                                virt_dev.emit(&[ev]).unwrap();
+                                send_key_i32(&mut virt_dev, ev.code(), ev.value());
                             }
                         }
                     }
