@@ -120,7 +120,7 @@ fn get_config() -> Config {
                 write!(&mut conf_file, default_conf!()).expect("Can't write config file");
             }
 
-            conf_contents = String::from_str(default_conf!()).unwrap();
+            conf_contents = std::fs::read_to_string(conf_filename_opt.unwrap()).unwrap();
         }
         2 => {
             if &args[1] == "-v" {
