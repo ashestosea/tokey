@@ -309,13 +309,11 @@ impl StateMachine {
             p.set(DBUS_IFACE_NAME,
                 DBUS_PROP_NAME,
                 !paused).unwrap();
-            // break;
             return true;
         } else if ev_kind == InputEventKind::Key(self.fn_key) && !paused {
             self.start_time = Instant::now();
             self.state = State::DECIDE;
             return true;
-            // break;
         }
         
         send_key_i32(&mut self.virt_dev, ev_code, ev_value);
@@ -333,7 +331,6 @@ impl StateMachine {
             self.event_buffer.clear();
             self.state = State::SHIFT;
             return true;
-            // break;
         } else {
             if ev.value() == KeyState::DOWN as i32 {
                 // add to event buffer
@@ -350,7 +347,6 @@ impl StateMachine {
                     self.event_buffer.clear();
                     self.state = State::IDLE;
                     return true;
-                    // break;
                 } else if self.event_buffer.contains(&code) {
                     // remove ev from buffer
                     self.event_buffer.retain(|c| c != &code);
@@ -362,7 +358,6 @@ impl StateMachine {
                     send_key_up(&mut self.virt_dev, code);
                     self.state = State::SHIFT;
                     return true;
-                    // break;
                 } else {
                     // key was pressed before fn_key
                     send_key_i32(&mut self.virt_dev, ev.code(), ev.value());
