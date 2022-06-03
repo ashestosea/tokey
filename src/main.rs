@@ -332,36 +332,42 @@ impl StateMachine {
             self.state = State::SHIFT;
             return true;
         } else {
-            if ev.value() == KeyState::DOWN as i32 {
-                // add to event buffer
-                self.event_buffer.push(ev.code());
-            } else if ev.value() == KeyState::UP as i32 {
-                let mut code = ev.code();
-                if ev.kind() == InputEventKind::Key(self.fn_key) {
-                    send_key_down(&mut self.virt_dev, code);
-                    send_key_up(&mut self.virt_dev, code);
-                    // Send all buffered key events as down
-                    for i in &self.event_buffer {
-                        send_key_down(&mut self.virt_dev, *i);
-                    }
-                    self.event_buffer.clear();
-                    self.state = State::IDLE;
-                    return true;
-                } else if self.event_buffer.contains(&code) {
-                    // remove ev from buffer
-                    self.event_buffer.retain(|c| c != &code);
-                    if self.keymap.contains_key(&code) {
-                        code = self.keymap[&code];
-                    }
-                    
-                    send_key_down(&mut self.virt_dev, code);
-                    send_key_up(&mut self.virt_dev, code);
-                    self.state = State::SHIFT;
-                    return true;
-                } else {
-                    // key was pressed before fn_key
-                    send_key_i32(&mut self.virt_dev, ev.code(), ev.value());
+            match ev.value().into() {
+                KeyState::DOWN => { 
+                    // add to event buffer
+                    self.event_buffer.push(ev.code());
                 }
+                KeyState::UP => {
+                    let mut code = ev.code();
+                    if ev.kind() == InputEventKind::Key(self.fn_key) {
+                        send_key_down(&mut self.virt_dev, code);
+                        send_key_up(&mut self.virt_dev, code);
+                        // Send all buffered key events as down
+                        for i in &self.event_buffer {
+                            send_key_down(&mut self.virt_dev, *i);
+                        }
+                        self.event_buffer.clear();
+                        self.state = State::IDLE;
+                        println!("decide -> idle");
+                        return true;
+                    } else if self.event_buffer.contains(&code) {
+                        // remove ev from buffer
+                        self.event_buffer.retain(|c| c != &code);
+                        if self.keymap.contains_key(&code) {
+                            code = self.keymap[&code];
+                        }
+                        
+                        send_key_down(&mut self.virt_dev, code);
+                        send_key_up(&mut self.virt_dev, code);
+                        self.state = State::SHIFT;
+                        println!("decide -> shift :: key press");
+                        return true;
+                    } else {
+                        // key was pressed before fn_key
+                        send_key_i32(&mut self.virt_dev, ev.code(), ev.value());
+                    }
+                }
+                _ => {}
             }
         }
         
