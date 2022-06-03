@@ -248,18 +248,175 @@ fn send_key_i32(virt_dev: &mut VirtualDevice, code: u16, value: i32) {
     virt_dev.emit(&[event]).unwrap();
 }
 
+struct StateMachine {
+    state: State,
+    conn: Connection,
+    virt_dev: VirtualDevice,
+    fn_key: Key,
+    pause_key: Key,
+    keymap: HashMap<u16, u16>,
+    timeout: Duration,
+    start_time: Instant,
+    event_buffer: Vec<u16>
+}
+
+impl StateMachine {
+    fn new(
+        conn: Connection,
+        virt_dev: VirtualDevice,
+        config: Config) -> Self {
+        let fn_key = Key::from_str(config.fn_key.as_str().unwrap()).expect("Invalid fn_key");
+        let pause_key = Key::from_str(config.pause_key.as_str().unwrap()).expect("Invalid pause_key");
+        let keymap = get_keymap(config.keymap);
+        let mode_switch_timeout = config
+            .mode_switch_timeout
+            .as_integer()
+            .expect("Invalid mode_switch_timeout") as u64;
+        let timeout: Duration = Duration::from_millis(mode_switch_timeout);
+        let start_time = Instant::now();
+        let event_buffer = vec![0; 10];
+        StateMachine {
+            state: State::IDLE,
+            conn,
+            virt_dev,
+            fn_key,
+            pause_key,
+            keymap,
+            timeout,
+            start_time,
+            event_buffer}
+    }
+    
+    fn run(&mut self, ev: InputEvent) -> bool {
+        match self.state {
+            State::IDLE => {self.state_idle(ev)}
+            State::DECIDE => {self.state_decide(ev)}
+            State::SHIFT => {self.state_shift(ev)}
+        }
+    }
+    
+    fn state_idle(&mut self, ev: InputEvent) -> bool {
+        let ev_kind = ev.kind();
+        let ev_code = ev.code();
+        let ev_value = ev.value();
+        let p = self.conn.with_proxy(
+            DBUS_IFACE_NAME,
+            DBUS_PATH,
+            Duration::from_millis(1000));
+        let paused_refarg = p.get::<Box<dyn arg::RefArg>>(
+            DBUS_IFACE_NAME,
+             DBUS_PROP_NAME
+            ).unwrap();
+        let paused: bool = *arg::cast::<bool>(&paused_refarg).unwrap();
+        if ev_kind == InputEventKind::Key(self.pause_key) && ev_value == KeyState::DOWN as i32 {
+            p.set(DBUS_IFACE_NAME,
+                DBUS_PROP_NAME,
+                !paused).unwrap();
+            // break;
+            return true;
+        } else if ev_kind == InputEventKind::Key(self.fn_key) && !paused {
+            self.start_time = Instant::now();
+            self.state = State::DECIDE;
+            return true;
+            // break;
+        }
+        
+        send_key_i32(&mut self.virt_dev, ev_code, ev_value);
+        false
+    }
+    
+    fn state_decide(&mut self, ev: InputEvent) -> bool {
+        let current_time = Instant::now();
+        if current_time.duration_since(self.start_time) >= self.timeout {
+            // Send all buffered key events as down then up
+            for i in &self.event_buffer {
+                send_key_down(&mut self.virt_dev, *i);
+                send_key_up(&mut self.virt_dev, *i);
+            }
+            self.event_buffer.clear();
+            self.state = State::SHIFT;
+            return true;
+            // break;
+        } else {
+            if ev.value() == KeyState::DOWN as i32 {
+                // add to event buffer
+                self.event_buffer.push(ev.code());
+            } else if ev.value() == KeyState::UP as i32 {
+                let mut code = ev.code();
+                if ev.kind() == InputEventKind::Key(self.fn_key) {
+                    send_key_down(&mut self.virt_dev, code);
+                    send_key_up(&mut self.virt_dev, code);
+                    // Send all buffered key events as down
+                    for i in &self.event_buffer {
+                        send_key_down(&mut self.virt_dev, *i);
+                    }
+                    self.event_buffer.clear();
+                    self.state = State::IDLE;
+                    return true;
+                    // break;
+                } else if self.event_buffer.contains(&code) {
+                    // remove ev from buffer
+                    self.event_buffer.retain(|c| c != &code);
+                    if self.keymap.contains_key(&code) {
+                        code = self.keymap[&code];
+                    }
+                    
+                    send_key_down(&mut self.virt_dev, code);
+                    send_key_up(&mut self.virt_dev, code);
+                    self.state = State::SHIFT;
+                    return true;
+                    // break;
+                } else {
+                    // key was pressed before fn_key
+                    send_key_i32(&mut self.virt_dev, ev.code(), ev.value());
+                }
+            }
+        }
+        
+        false
+    }
+    
+    fn state_shift(&mut self, ev: InputEvent) -> bool {
+        if ev.kind() == InputEventKind::Key(self.fn_key) {
+            if ev.value() == KeyState::UP as i32 {
+                // Send all buffered key events as up
+                for i in &self.event_buffer {
+                    send_key_up(&mut self.virt_dev, *i);
+                }
+                self.event_buffer.clear();
+                self.state = State::IDLE;
+            }
+        }
+
+        if self.keymap.contains_key(&ev.code()) {
+            let mapped_code = self.keymap[&ev.code()];
+            
+            match ev.value().into() {
+                KeyState::UP => {
+                    // remove ev from buffer
+                    self.event_buffer.retain(|c| c != &mapped_code);
+                }
+                KeyState::DOWN => {
+                    self.event_buffer.push(mapped_code);
+                }
+                _ => {}
+            }
+
+            send_key_i32(&mut self.virt_dev, mapped_code, ev.value());
+        } else {
+            send_key_i32(&mut self.virt_dev, ev.code(), ev.value());
+        }
+        
+        false
+    }
+}
+
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup
     let config = get_config();
-    let mode_switch_timeout = config
-        .mode_switch_timeout
-        .as_integer()
-        .expect("Invalid mode_switch_timeout") as u64;
-    let fn_key = Key::from_str(config.fn_key.as_str().unwrap()).expect("Invalid fn_key");
-    let pause_key = Key::from_str(config.pause_key.as_str().unwrap()).expect("Invalid pause_key");
-    let keymap = get_keymap(config.keymap);
     let mut dev = get_device(config.device_name.to_string()).expect("Invalid input device");
-    let mut virt_dev = evdev::uinput::VirtualDeviceBuilder::new()?
+    let virt_dev = evdev::uinput::VirtualDeviceBuilder::new()?
         .name("spacefn-kbd")
         .with_keys(dev.supported_keys().unwrap())?
         .build()
@@ -267,13 +424,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
     register_dbus_iface()?;
     
-    let mut state = State::IDLE;
-    let timeout: Duration = Duration::from_millis(mode_switch_timeout);
-    let mut start_time = Instant::now();
     let key_event = evdev::EventType::KEY;
-    let mut event_buffer = vec![0; 10];
     
     let c2 = Connection::new_session()?;
+    let mut state_machine = StateMachine::new(c2, virt_dev, config);
     let _ = dev.grab();
     loop {
         match dev.fetch_events() {
@@ -282,108 +436,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if ev.code() == 0 || ev.event_type() != key_event {
                         continue;
                     }
-                    match state {
-                        State::IDLE => {
-                            let p = c2.with_proxy(
-                                DBUS_IFACE_NAME,
-                                DBUS_PATH,
-                                Duration::from_millis(1000));
-                            let paused_refarg = p.get::<Box<dyn arg::RefArg>>(
-                                DBUS_IFACE_NAME,
-                                 DBUS_PROP_NAME
-                                )?;
-                            let paused: bool = *arg::cast::<bool>(&paused_refarg).unwrap();
-                            if ev.kind() == InputEventKind::Key(pause_key)
-                            && ev.value() == KeyState::DOWN as i32
-                            {
-                                p.set(DBUS_IFACE_NAME,
-                                    DBUS_PROP_NAME,
-                                    !paused)?;
-                                break;
-                            } else if ev.kind() == InputEventKind::Key(fn_key) && !paused {
-                                start_time = Instant::now();
-                                state = State::DECIDE;
-                                break;
-                            }
-                            
-                            send_key_i32(&mut virt_dev, ev.code(), ev.value());
-                        }
-                        State::DECIDE => {
-                            let current_time = Instant::now();
-                            if current_time.duration_since(start_time) >= timeout {
-                                // Send all buffered key events as down then up
-                                for i in &event_buffer {
-                                    send_key_down(&mut virt_dev, *i);
-                                    send_key_up(&mut virt_dev, *i);
-                                }
-                                event_buffer.clear();
-                                state = State::SHIFT;
-                                break;
-                            } else {
-                                if ev.value() == KeyState::DOWN as i32 {
-                                    // add to event buffer
-                                    event_buffer.push(ev.code());
-                                } else if ev.value() == KeyState::UP as i32 {
-                                    let mut code = ev.code();
-                                    if ev.kind() == InputEventKind::Key(fn_key) {
-                                        send_key_down(&mut virt_dev, code);
-                                        send_key_up(&mut virt_dev, code);
-                                        // Send all buffered key events as down
-                                        for i in &event_buffer {
-                                            send_key_down(&mut virt_dev, *i);
-                                        }
-                                        event_buffer.clear();
-                                        state = State::IDLE;
-                                        break;
-                                    } else if event_buffer.contains(&code) {
-                                        // remove ev from buffer
-                                        event_buffer.retain(|c| c != &code);
-                                        if keymap.contains_key(&code) {
-                                            code = keymap[&code];
-                                        }
-                                        
-                                        send_key_down(&mut virt_dev, code);
-                                        send_key_up(&mut virt_dev, code);
-                                        state = State::SHIFT;
-                                        break;
-                                    } else {
-                                        // key was pressed before fn_key
-                                        send_key_i32(&mut virt_dev, ev.code(), ev.value());
-                                    }
-                                }
-                            }
-                        }
-                        State::SHIFT => {
-                            if ev.kind() == InputEventKind::Key(fn_key) {
-                                if ev.value() == KeyState::UP as i32 {
-                                    // Send all buffered key events as up
-                                    for i in &event_buffer {
-                                        send_key_up(&mut virt_dev, *i);
-                                    }
-                                    event_buffer.clear();
-                                    state = State::IDLE;
-                                }
-                            }
-
-                            if keymap.contains_key(&ev.code()) {
-                                let mapped_code = keymap[&ev.code()];
-                                
-                                match ev.value().into() {
-                                    KeyState::UP => {
-                                        // remove ev from buffer
-                                        event_buffer.retain(|c| c != &mapped_code);
-                                    }
-                                    KeyState::DOWN => {
-                                        event_buffer.push(mapped_code);
-                                    }
-                                    _ => {}
-                                }
-
-                                send_key_i32(&mut virt_dev, mapped_code, ev.value());
-                            } else {
-                                send_key_i32(&mut virt_dev, ev.code(), ev.value());
-                            }
-                        }
+                    
+                    if state_machine.run(ev) {
+                        break;
                     }
                 }
             }
