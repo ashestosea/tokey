@@ -236,10 +236,7 @@ fn send_key_up(virt_dev: &mut VirtualDevice, code: u16) {
 }
 
 fn send_key(virt_dev: &mut VirtualDevice, code: u16, value: KeyState) {
-    let event = InputEvent::new(
-        evdev::EventType::KEY,
-        code,
-        value as i32);
+    let event = InputEvent::new(evdev::EventType::KEY, code, value as i32);
     virt_dev.emit(&[event]).unwrap();
 }
 
@@ -424,16 +421,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
     register_dbus_iface()?;
     
-    let key_event = evdev::EventType::KEY;
-    
-    let c2 = Connection::new_session()?;
-    let mut state_machine = StateMachine::new(c2, virt_dev, config);
+    let conn = Connection::new_session()?;
+    let mut state_machine = StateMachine::new(conn, virt_dev, config);
     let _ = dev.grab();
     loop {
         match dev.fetch_events() {
             Ok(iterator) => {
                 for ev in iterator {
-                    if ev.code() == 0 || ev.event_type() != key_event {
+                    if ev.code() == 0 || ev.event_type() != evdev::EventType::KEY {
                         continue;
                     }
                     
