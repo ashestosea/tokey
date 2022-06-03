@@ -325,8 +325,12 @@ impl StateMachine {
         if current_time.duration_since(self.start_time) >= self.timeout {
             // Send all buffered key events as down then up
             for i in &self.event_buffer {
-                send_key_down(&mut self.virt_dev, *i);
-                send_key_up(&mut self.virt_dev, *i);
+                let mut code = *i;
+                if self.keymap.contains_key(&code) {
+                    code = self.keymap[&code];
+                }
+                send_key_down(&mut self.virt_dev, code);
+                send_key_up(&mut self.virt_dev, code);
             }
             self.event_buffer.clear();
             self.state = State::SHIFT;
