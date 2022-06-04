@@ -1,7 +1,7 @@
 # If device_name starts with /dev/input/ it's treated as a path
 # Else we grab the highest numbered device with a name that contains device_name
 # device_name = "Keychron C1"
-device_name = "/dev/input/event2"
+device_name = "/dev/input/by-id/usb-Keychron_Keychron_C1-event-kbd"
 
 # in ms
 mode_switch_timeout = 200
