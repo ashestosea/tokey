@@ -163,8 +163,7 @@ fn get_keymap(in_keymap: toml::value::Map<String, toml::Value>) -> HashMap<u16, 
 
 fn get_device(mut device_name: String) -> std::io::Result<evdev::Device> {
     let device: evdev::Device;
-    device_name.remove(0);
-    device_name.remove(device_name.len() - 1);
+	device_name.retain(|c| c != '"');
 
     if device_name.starts_with("/dev/input/") {
         device = evdev::Device::open(device_name).unwrap();
