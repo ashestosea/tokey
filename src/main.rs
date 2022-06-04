@@ -425,6 +425,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let conn = Connection::new_session()?;
     let mut state_machine = StateMachine::new(conn, virt_dev, config);
+    
+    // Sleep for 100ms to avoid capturing the keypress used to start the program
+    std::thread::sleep(Duration::from_millis(100));
+    
     let _ = dev.grab();
     loop {
         match dev.fetch_events() {
