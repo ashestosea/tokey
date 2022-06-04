@@ -352,7 +352,6 @@ impl StateMachine {
                         }
                         self.event_buffer.clear();
                         self.state = State::IDLE;
-                        println!("decide -> idle");
                         return true;
                     } else if self.event_buffer.contains(&code) {
                         // remove ev from buffer
@@ -364,7 +363,6 @@ impl StateMachine {
                         send_key_down(&mut self.virt_dev, code);
                         send_key_up(&mut self.virt_dev, code);
                         self.state = State::SHIFT;
-                        println!("decide -> shift :: key press");
                         return true;
                     } else {
                         // key was pressed before fn_key
