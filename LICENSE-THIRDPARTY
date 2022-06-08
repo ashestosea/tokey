@@ -1,4 +1,4 @@
-The spacefn-rs package uses some third party libraries under their own license terms:
+The tokey package uses some third party libraries under their own license terms:
 
  * bitflags 1.3.2 under the terms of MIT / Apache-2.0:
 
@@ -3102,7 +3102,7 @@ The spacefn-rs package uses some third party libraries under their own license t
     limitations under the License.
 
 
- * spacefn-rs 0.5.0 under the terms of WTFPL:
+ * tokey 0.1.0 under the terms of WTFPL:
 
                 DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
                         Version 2, December 2004

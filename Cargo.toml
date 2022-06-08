@@ -1,10 +1,10 @@
 [package]
-name = "spacefn-rs"
-version = "0.2.0"
+name = "tokey"
+version = "0.1.0"
 authors = ["Damian Geerdes (chronotab)"]
 edition = "2021"
 description = "Reimplementation of spacefn in rust with dbus messaging"
-repository = "https://github.com/chronotab/spacefn-rs"
+repository = "https://github.com/chronotab/tokey"
 license = "WTFPL"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

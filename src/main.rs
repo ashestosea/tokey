@@ -66,7 +66,7 @@ struct Config {
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const DBUS_IFACE_NAME: &str = "com.spacefn.spacefn";
+const DBUS_IFACE_NAME: &str = "com.chronotab.tokey";
 const DBUS_PATH: &str = "/";
 const DBUS_PROP_NAME: &str = "Paused";
 
@@ -90,14 +90,14 @@ fn version() {
 
 fn help() {
     println!(
-        r#"Usage: spacefn-rs [OPTION]... [FILE]...
-Add Description of spacefn
+        r#"Usage: tokey [OPTION]... [FILE]...
+Add Description of tokey
 
   -c,            specify a custom configuration file
   -v, --help     display this help and exit
       --version  output version information and exit
 
-Full documentation <https://www.github.com/chronotab/spacefn-rs>
+Full documentation <https://www.github.com/chronotab/tokey>
     "#
     );
     exit(1);
@@ -110,7 +110,7 @@ fn get_config() -> Config {
     match &args.len() {
         // no Arguments passed
         1 => {
-            let xdg_dirs = xdg::BaseDirectories::with_prefix("spacefn-rs").unwrap();
+            let xdg_dirs = xdg::BaseDirectories::with_prefix("tokey").unwrap();
             let conf_filename_opt = xdg_dirs.find_config_file("conf.toml");
             if conf_filename_opt.is_none() {
                 let conf_path = xdg_dirs
@@ -416,7 +416,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = get_config();
     let mut dev = get_device(config.device_name.to_string()).expect("Invalid input device");
     let virt_dev = evdev::uinput::VirtualDeviceBuilder::new()?
-        .name("spacefn-kbd")
+        .name("tokey-kbd")
         .with_keys(dev.supported_keys().unwrap())?
         .build()
         .unwrap();
