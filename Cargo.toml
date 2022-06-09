@@ -1,6 +1,6 @@
 [package]
 name = "tokey"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Damian Geerdes (chronotab)"]
 edition = "2021"
 description = "Reimplementation of spacefn in rust with dbus messaging"
