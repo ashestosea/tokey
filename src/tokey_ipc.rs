@@ -25,7 +25,7 @@ impl Messenger {
     }
     
     pub fn set_paused(&self, paused: bool) {
-        self.get_proxy().set(DBUS_IFACE_NAME, DBUS_PROP_NAME, !paused).unwrap();
+        self.get_proxy().set(DBUS_IFACE_NAME, DBUS_PROP_NAME, paused).unwrap();
     }
 }
 
