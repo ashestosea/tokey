@@ -259,9 +259,7 @@ impl StateMachine {
         let ev_code = ev.code();
         let ev_value = ev.value();
         if ev_kind == InputEventKind::Key(self.pause_key) && ev_value == KeyState::DOWN as i32 {
-            self.paused = !self.paused;
-            #[cfg(feature = "tokey_ipc")]
-            self.messenger.set_paused(self.paused);
+            self.toggle_paused();
             return true;
         } else if ev_kind == InputEventKind::Key(self.fn_key) && !self.paused {
             self.start_time = Instant::now();
@@ -338,6 +336,7 @@ impl StateMachine {
                 }
                 self.event_buffer.clear();
                 self.state = State::IDLE;
+                return true;
             }
         }
 
@@ -361,6 +360,12 @@ impl StateMachine {
         }
         
         false
+    }
+    
+    fn toggle_paused(&mut self) {
+        self.paused = !self.paused;
+        #[cfg(feature = "tokey_ipc")]
+        self.messenger.set_paused(self.paused);
     }
 }
 
