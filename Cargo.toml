@@ -18,3 +18,7 @@ serde = "^1.0.136"
 serde_derive = "^1.0.136"
 toml = "^0.5.8"
 xdg = "^2.4.1"
+
+[features]
+default = ["tokey_ipc"]
+tokey_ipc = []

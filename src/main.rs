@@ -4,13 +4,6 @@
 * terms of the Do What The Fuck You Want To Public License, Version 2,
 * as published by Sam Hocevar. See the COPYING file for more details.
 */
-
-use dbus::arg;
-use dbus::blocking::Connection;
-use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
-use dbus::channel::MatchingReceiver;
-use dbus::message::MatchRule;
-use dbus_crossroads::{Crossroads, IfaceBuilder};
 use evdev::InputEvent;
 use evdev::InputEventKind;
 use evdev::Key;
@@ -28,6 +21,9 @@ use std::str::FromStr;
 use std::time::Duration;
 use std::time::Instant;
 use toml;
+
+#[cfg(feature = "tokey_ipc")]
+mod tokey_ipc;
 
 extern crate xdg;
 
@@ -66,9 +62,6 @@ struct Config {
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const DBUS_IFACE_NAME: &str = "com.chronotab.tokey";
-const DBUS_PATH: &str = "/";
-const DBUS_PROP_NAME: &str = "Paused";
 
 macro_rules! default_conf {
     () => {
@@ -163,7 +156,7 @@ fn get_keymap(in_keymap: toml::value::Map<String, toml::Value>) -> HashMap<u16, 
 
 fn get_device(mut device_name: String) -> std::io::Result<evdev::Device> {
     let device: evdev::Device;
-	device_name.retain(|c| c != '"');
+    device_name.retain(|c| c != '"');
 
     if device_name.starts_with("/dev/input/") {
         device = evdev::Device::open(device_name).unwrap();
@@ -189,43 +182,6 @@ fn get_device(mut device_name: String) -> std::io::Result<evdev::Device> {
     Ok(device)
 }
 
-fn register_dbus_iface() -> Result<(), Box<dyn std::error::Error>> {
-    let c = Connection::new_session()?;
-    c.request_name(DBUS_IFACE_NAME, false, true, false)?;
-    
-    let mut cr = Crossroads::new();
-    
-    let token = cr.register(DBUS_IFACE_NAME, |f: &mut IfaceBuilder<bool>| {
-        f.property(DBUS_PROP_NAME)
-            .get(|_, data| Ok(*data))
-            .set(|_, data, value| {
-                *data = value;
-                Ok(Some(value))
-            });
-    });
-    
-    cr.insert(DBUS_PATH, &[token], false);
-    
-    let _ = &c.start_receive(MatchRule::new_method_call(), Box::new(move |msg, conn| {
-        cr.handle_message(msg, conn).unwrap();
-        true
-    }));
-    
-    std::thread::spawn(move || {
-        loop {
-            match c.process(Duration::from_millis(1000)) {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("dbus loop error: {}", err);
-                    break
-                }
-            }
-        }
-    });
-    
-    Ok(())
-}
-
 fn send_key_down(virt_dev: &mut VirtualDevice, code: u16) {
     send_key(virt_dev, code, KeyState::DOWN);
 }
@@ -246,21 +202,25 @@ fn send_key_i32(virt_dev: &mut VirtualDevice, code: u16, value: i32) {
 
 struct StateMachine {
     state: State,
-    conn: Connection,
     virt_dev: VirtualDevice,
     fn_key: Key,
     pause_key: Key,
     keymap: HashMap<u16, u16>,
     timeout: Duration,
     start_time: Instant,
-    event_buffer: Vec<u16>
+    event_buffer: Vec<u16>,
+    paused: bool,
+    #[cfg(feature = "tokey_ipc")]
+    messenger: tokey_ipc::Messenger
 }
 
 impl StateMachine {
     fn new(
-        conn: Connection,
         virt_dev: VirtualDevice,
-        config: Config) -> Self {
+        config: Config,
+        #[cfg(feature = "tokey_ipc")]
+        messenger: tokey_ipc::Messenger
+    ) -> Self {
         let fn_key = Key::from_str(config.fn_key.as_str().unwrap()).expect("Invalid fn_key");
         let pause_key = Key::from_str(config.pause_key.as_str().unwrap()).expect("Invalid pause_key");
         let keymap = get_keymap(config.keymap);
@@ -271,16 +231,19 @@ impl StateMachine {
         let timeout: Duration = Duration::from_millis(mode_switch_timeout);
         let start_time = Instant::now();
         let event_buffer = vec![0; 10];
+        
         StateMachine {
             state: State::IDLE,
-            conn,
             virt_dev,
             fn_key,
             pause_key,
             keymap,
             timeout,
             start_time,
-            event_buffer}
+            event_buffer,
+            paused: false,
+            #[cfg(feature = "tokey_ipc")]
+            messenger}
     }
     
     fn run(&mut self, ev: InputEvent) -> bool {
@@ -295,21 +258,12 @@ impl StateMachine {
         let ev_kind = ev.kind();
         let ev_code = ev.code();
         let ev_value = ev.value();
-        let p = self.conn.with_proxy(
-            DBUS_IFACE_NAME,
-            DBUS_PATH,
-            Duration::from_millis(1000));
-        let paused_refarg = p.get::<Box<dyn arg::RefArg>>(
-            DBUS_IFACE_NAME,
-             DBUS_PROP_NAME
-            ).unwrap();
-        let paused: bool = *arg::cast::<bool>(&paused_refarg).unwrap();
         if ev_kind == InputEventKind::Key(self.pause_key) && ev_value == KeyState::DOWN as i32 {
-            p.set(DBUS_IFACE_NAME,
-                DBUS_PROP_NAME,
-                !paused).unwrap();
+            self.paused = !self.paused;
+            #[cfg(feature = "tokey_ipc")]
+            self.messenger.set_paused(self.paused);
             return true;
-        } else if ev_kind == InputEventKind::Key(self.fn_key) && !paused {
+        } else if ev_kind == InputEventKind::Key(self.fn_key) && !self.paused {
             self.start_time = Instant::now();
             self.state = State::DECIDE;
             return true;
@@ -420,11 +374,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_keys(dev.supported_keys().unwrap())?
         .build()
         .unwrap();
-        
-    register_dbus_iface()?;
     
-    let conn = Connection::new_session()?;
-    let mut state_machine = StateMachine::new(conn, virt_dev, config);
+    let mut state_machine = StateMachine::new(
+        virt_dev,
+        config,
+        #[cfg(feature = "tokey_ipc")]
+        tokey_ipc::Messenger::new()
+    );
     
     // Sleep for 100ms to avoid capturing the keypress used to start the program
     std::thread::sleep(Duration::from_millis(100));
