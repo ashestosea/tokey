@@ -67,11 +67,26 @@ macro_rules! default_conf {
     () => {
         r#"# If device_name starts with /dev/input/ it's treated as a path
 # Else we grab the highest numbered device with a name that contains device_name
-device = ""
+device_name = ""
 
-toggle_state_key = "KEY_RIGHTMETA"
+# in ms
+mode_switch_timeout = 200
+
+fn_key = "KEY_SPACE"
+pause_key = "KEY_RIGHTALT"
 
 [keymap]
+KEY_J = "KEY_LEFT"
+KEY_L = "KEY_RIGHT"
+KEY_I = "KEY_UP"
+KEY_K = "KEY_DOWN"
+KEY_H = "KEY_PAGEDOWN"
+KEY_Y = "KEY_PAGEUP"
+KEY_U = "KEY_HOME"
+KEY_O = "KEY_END"
+KEY_P = "KEY_BACKSPACE"
+KEY_M = "KEY_DELETE"
+KEY_SEMICOLON = "KEY_SPACE"
 "#
     };
 }
