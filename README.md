@@ -20,11 +20,12 @@ Then run
 ```bash
 cargo install --path .
 ```
-Then either
-- Add `~/.cargo/bin/` to your PATH
+and then add `~/.cargo/bin/` to your PATH
 
-or
-- `sudo mv ~/.cargo/bin/tokey /usr/bin/`
+Or
+```bash
+cargo install --path . --root ~/.local/bin
+```
 
 ## Usage
 
