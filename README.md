@@ -20,7 +20,7 @@ Then run
 ```bash
 cargo install --path .
 ```
-and then add `~/.cargo/bin/` to your PATH
+and then make sure `~/.cargo/bin/` is in your PATH
 
 Or
 ```bash
