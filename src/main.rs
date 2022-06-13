@@ -65,13 +65,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 macro_rules! default_conf {
     () => {
-        r#"# If device_name starts with /dev/input/ it's treated as a path
-# Else we grab the highest numbered device with a name that contains device_name
-device_name = ""
-
-# in ms
+        r#"device_name = ""
 mode_switch_timeout = 200
-
 fn_key = "KEY_SPACE"
 pause_key = "KEY_RIGHTALT"
 
