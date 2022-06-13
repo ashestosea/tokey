@@ -50,6 +50,14 @@ Returns version info.
 tokey uses [TOML](https://toml.io/en/) v0.5.0 for configuration
 
 ```
+device_name = "..."
+```
+If device_name starts with `/dev/input/` it's treated as a path.  
+(e.g. `/dev/input/by-id/usb-Keychron_Keychron_C1-event-kbd`, `/dev/input/event5`)  
+Otherwise tokey grabs the highest numbered device with a name that contains the value of `device_name`  
+(e.g. `Keychron_C1`)
+
+```
 mode_switch_timeout
 ```
 Time it takes (in ms) to switch into keymapping mode
